@@ -22,25 +22,15 @@ select option{background:#1A1D27;color:#E8EAF0;}
 <body>
 <div id="root"></div>
 <script>
-// localStorage storage adapter (replaces window.storage for standalone)
 window.storage = {
   get: async function(key) {
-    try {
-      const v = localStorage.getItem('ptmgr_' + key);
-      return v ? { value: v } : null;
-    } catch(e) { return null; }
+    try { const v = localStorage.getItem('ptmgr_' + key); return v ? { value: v } : null; } catch(e) { return null; }
   },
   set: async function(key, value) {
-    try {
-      localStorage.setItem('ptmgr_' + key, value);
-      return { value: value };
-    } catch(e) { return null; }
+    try { localStorage.setItem('ptmgr_' + key, value); return { value: value }; } catch(e) { return null; }
   },
   delete: async function(key) {
-    try {
-      localStorage.removeItem('ptmgr_' + key);
-      return { deleted: true };
-    } catch(e) { return null; }
+    try { localStorage.removeItem('ptmgr_' + key); return { deleted: true }; } catch(e) { return null; }
   }
 };
 </script>
@@ -476,7 +466,7 @@ function AddClientModal({onClose,onSave,initial={},title="Nuovo cliente"}){const
         return{nome:parts[0]||line,dose:parts[1]||"",momento:parts[2]||"",note:"",utile:true};
       });
     }
-    onSave({...f,integratori,docs:initial.id?undefined:hasDiet?docs:[...docs,dietDoc]});
+    onSave({...f,integratori,docs:initial.id?initial.docs:hasDiet?docs:[...docs,dietDoc]});
   };return <Modal title={title} onClose={onClose}><Inp label="Nome e cognome *" value={f.name} onChange={s("name")} placeholder="Es. Mario Rossi"/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Inp label="Data di nascita" value={f.dob} onChange={s("dob")} placeholder="GG/MM/AAAA"/><Inp label="Età" value={f.age} onChange={s("age")} placeholder="Es. 40"/><Inp label="Peso (es. 75 kg)" value={f.weight} onChange={s("weight")} placeholder="Es. 75 kg"/><Inp label="Altezza" value={f.height} onChange={s("height")} placeholder="Es. 178 cm"/></div><Inp label="Obiettivo" value={f.goal} onChange={s("goal")} placeholder="Es. Massa muscolare..."/><div style={{marginBottom:16}}>
     <label style={{display:"block",fontSize:12,color:C.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Integratori (opzionale)</label>
     <div style={{fontSize:12,color:C.textMuted,marginBottom:8}}>Es: Creatina 3g – dopo colazione | Vitamina D 2000UI – pranzo</div>
