@@ -618,13 +618,19 @@ function App(){
     const r=await window.storage.get("pt-v7");
     if(r&&r.value){
       let s=JSON.parse(r.value);
-      // Repair: if Luigi has no docs, restore from defaults
+      // Repair: restore docs and integratori from defaults if missing
       s=s.map(c=>{
         const def=DEF_CLIENTS.find(d=>d.id===c.id);
-        if(def&&(!c.docs||c.docs.length===0)){
-          return{...c,docs:def.docs,integratori:c.integratori||def.integratori||[]};
-        }
-        return c;
+        if(!def)return c;
+        // Restore docs if missing
+        const docs=(!c.docs||c.docs.length===0)?def.docs:c.docs;
+        // Add integratori doc if missing
+        const hasIntegDoc=docs.some(d=>d.contentKey==="integratori");
+        const integDoc=def.docs.find(d=>d.contentKey==="integratori");
+        const fixedDocs=(!hasIntegDoc&&integDoc)?[...docs,integDoc]:docs;
+        // Restore integratori data if missing
+        const integratori=(c.integratori&&c.integratori.length>0)?c.integratori:def.integratori||[];
+        return{...c,docs:fixedDocs,integratori};
       });
       // Add Alessandra if missing
       if(!s.some(c=>c.id==="alessandra-inverardi"))s=[...s,DEF_CLIENTS[1]];
