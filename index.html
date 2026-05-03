@@ -9,34 +9,19 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-<style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:#0F1117;font-family:'Sora',sans-serif;}
-::-webkit-scrollbar{width:6px;}
-::-webkit-scrollbar-track{background:#0F1117;}
-::-webkit-scrollbar-thumb{background:#2A2F45;border-radius:3px;}
-select option{background:#1A1D27;color:#E8EAF0;}
-#root{min-height:100vh;}
-</style>
+<style>*{margin:0;padding:0;box-sizing:border-box;}body{background:#0F1117;font-family:'Sora',sans-serif;}::-webkit-scrollbar{width:6px;}::-webkit-scrollbar-track{background:#0F1117;}::-webkit-scrollbar-thumb{background:#2A2F45;border-radius:3px;}select option{background:#1A1D27;color:#E8EAF0;}#root{min-height:100vh;}</style>
 </head>
 <body>
 <div id="root"></div>
 <script>
-window.storage = {
-  get: async function(key) {
-    try { const v = localStorage.getItem('ptmgr_' + key); return v ? { value: v } : null; } catch(e) { return null; }
-  },
-  set: async function(key, value) {
-    try { localStorage.setItem('ptmgr_' + key, value); return { value: value }; } catch(e) { return null; }
-  },
-  delete: async function(key) {
-    try { localStorage.removeItem('ptmgr_' + key); return { deleted: true }; } catch(e) { return null; }
-  }
+window.storage={
+  get:async function(key){try{const v=localStorage.getItem('ptmgr_'+key);return v?{value:v}:null;}catch(e){return null;}},
+  set:async function(key,value){try{localStorage.setItem('ptmgr_'+key,value);return{value:value};}catch(e){return null;}},
+  delete:async function(key){try{localStorage.removeItem('ptmgr_'+key);return{deleted:true};}catch(e){return null;}}
 };
 </script>
 <script type="text/babel">
-const {useState, useEffect, useRef} = React;
-
+const {useState,useEffect,useRef}=React;
 
 const C={bg:"#0F1117",surface:"#1A1D27",surfaceHover:"#21253A",border:"#2A2F45",accent:"#4F8EF7",accentSoft:"#1E3A6E",green:"#2ECC71",greenSoft:"#1A4A32",orange:"#F39C12",orangeSoft:"#4A3010",red:"#E74C3C",redSoft:"#4A1510",purple:"#9B59B6",purpleSoft:"#2E1A47",teal:"#1ABC9C",tealSoft:"#0E6655",text:"#E8EAF0",textMuted:"#7B82A0",textDim:"#4A5070"};
 const BADGE_CFG={palestra:{label:"Palestra",color:C.accent,bg:C.accentSoft},cardio:{label:"Cardio",color:C.green,bg:C.greenSoft},alimentazione:{label:"Alimentazione",color:C.orange,bg:C.orangeSoft},integratori:{label:"Integratori",color:C.purple,bg:C.purpleSoft},altro:{label:"Altro",color:C.textMuted,bg:"#1E2030"}};
@@ -210,7 +195,7 @@ const DEF_CLIENTS=[
     {nome:"Vitamina C + Zinco",dose:"500mg + 10mg",quando:"A colazione",whenAllenamento:"Stesso orario tutti i giorni",perche:"Over 50: supporta sistema immunitario e recupero. Lo zinco aiuta la produzione di testosterone.",utile:true,priorita:"media",emoji:"🍊",custom:true},
     {nome:"Proteine in polvere (whey)",dose:"25-30g",quando:"Entro 30 min post-allenamento",whenAllenamento:"Solo giorni di palestra",perche:"Opzionale: usare solo se difficile raggiungere i 166g/die di proteine col cibo.",utile:false,priorita:"bassa",emoji:"🥤",custom:true},
   ],docs:[{id:"d1",name:"Scheda Palestra",type:"palestra",date:"2026-05-01",contentKey:"luigi-palestra"},{id:"d2",name:"Scheda Cardio",type:"cardio",date:"2026-05-01",contentKey:"luigi-cardio"},{id:"d3",name:"Scheda Alimentazione",type:"alimentazione",date:"2026-05-01",contentKey:"diet"},{id:"d4",name:"Scheda Integratori",type:"integratori",date:"2026-05-01",contentKey:"integratori"}],progress:[{id:"p1",date:"2026-05-01",panca:"80",squat:"60",stacco:"60",peso:"83",note:"Inizio programma"}],createdAt:"2026-05-01"},
-  {id:"alessandra-inverardi",name:"Alessandra Inverardi",dob:"",age:"50",weight:"54 kg",height:"168 cm",goal:"Mantenimento muscolare",notes:"Spalle infiammate – no overhead.\nFlessori corti – stretching obbligatorio.\nStacco escluso – Hip Thrust.\nCorsa 2x/sett 10km a 5:20/km.",docs:[{id:"d1",name:"Scheda Palestra",type:"palestra",date:"2026-05-01",contentKey:"alessandra-palestra"},{id:"d2",name:"Scheda Cardio",type:"cardio",date:"2026-05-01",contentKey:"alessandra-cardio"},{id:"d3",name:"Scheda Alimentazione",type:"alimentazione",date:"2026-05-01",contentKey:"diet"}],progress:[{id:"p1",date:"2026-05-01",panca:"",squat:"20",stacco:"",peso:"54",note:"Inizio programma"}],createdAt:"2026-05-01"},
+  {id:"alessandra-inverardi",name:"Alessandra Inverardi",dob:"",age:"50",weight:"54 kg",height:"168 cm",goal:"Mantenimento muscolare",notes:"Spalle infiammate – no overhead.\nFlessori corti – stretching obbligatorio.\nStacco escluso – Hip Thrust.\nCorsa 2x/sett 10km a 5:20/km.",integratori:[{nome:"Vitamina D3",dose:"2000 UI",quando:"A pranzo (con grassi)",whenAllenamento:"Stesso orario tutti i giorni",perche:"Over 50 donna: fondamentale per ossa, muscoli e umore. Spesso carente.",utile:true,priorita:"alta",emoji:"☀️",custom:true},{nome:"Omega 3 (EPA+DHA)",dose:"2g",quando:"A cena",whenAllenamento:"Stesso orario – agisce anche di notte",perche:"Anti-infiammatorio naturale: riduce l infiammazione delle spalle e il dolore muscolare post-allenamento.",utile:true,priorita:"alta",emoji:"🐟",custom:true},{nome:"Magnesio glicinate",dose:"300mg",quando:"30 min prima di dormire",whenAllenamento:"Stesso orario tutti i giorni",perche:"Migliora qualita del sonno e recupero muscolare. Riduce tensioni muscolari.",utile:true,priorita:"media",emoji:"🌙",custom:true},{nome:"Vitamina C + Zinco",dose:"500mg + 10mg",quando:"A colazione",whenAllenamento:"Stesso orario tutti i giorni",perche:"Sistema immunitario + sintesi di collagene per i tendini delle spalle infiammate.",utile:true,priorita:"media",emoji:"🍊",custom:true},{nome:"Calcio + Vitamina K2",dose:"500mg + 100mcg",quando:"A cena (separato dall Omega 3 di 2 ore)",whenAllenamento:"Stesso orario tutti i giorni",perche:"Over 50 donna: prevenzione osteoporosi. La K2 dirige il calcio verso le ossa e non le arterie.",utile:true,priorita:"alta",emoji:"🦴",custom:true}],docs:[{id:"d1",name:"Scheda Palestra",type:"palestra",date:"2026-05-01",contentKey:"alessandra-palestra"},{id:"d2",name:"Scheda Cardio",type:"cardio",date:"2026-05-01",contentKey:"alessandra-cardio"},{id:"d3",name:"Scheda Alimentazione",type:"alimentazione",date:"2026-05-01",contentKey:"diet"},{id:"d4",name:"Scheda Integratori",type:"integratori",date:"2026-05-01",contentKey:"integratori"}],progress:[{id:"p1",date:"2026-05-01",panca:"",squat:"20",stacco:"",peso:"54",note:"Inizio programma"}],createdAt:"2026-05-01"},
 ];
 
 const DEF_GROUPS=[
@@ -618,13 +603,19 @@ function App(){
     const r=await window.storage.get("pt-v7");
     if(r&&r.value){
       let s=JSON.parse(r.value);
-      // Repair: if Luigi has no docs, restore from defaults
+      // Repair: restore docs and integratori from defaults if missing
       s=s.map(c=>{
         const def=DEF_CLIENTS.find(d=>d.id===c.id);
-        if(def&&(!c.docs||c.docs.length===0)){
-          return{...c,docs:def.docs,integratori:c.integratori||def.integratori||[]};
-        }
-        return c;
+        if(!def)return c;
+        // Restore docs if missing
+        const docs=(!c.docs||c.docs.length===0)?def.docs:c.docs;
+        // Add integratori doc if missing
+        const hasIntegDoc=docs.some(d=>d.contentKey==="integratori");
+        const integDoc=def.docs.find(d=>d.contentKey==="integratori");
+        const fixedDocs=(!hasIntegDoc&&integDoc)?[...docs,integDoc]:docs;
+        // Restore integratori data if missing
+        const integratori=(c.integratori&&c.integratori.length>0)?c.integratori:def.integratori||[];
+        return{...c,docs:fixedDocs,integratori};
       });
       // Add Alessandra if missing
       if(!s.some(c=>c.id==="alessandra-inverardi"))s=[...s,DEF_CLIENTS[1]];
@@ -802,8 +793,7 @@ function App(){
   </div>;
 }
 
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
+const root=ReactDOM.createRoot(document.getElementById('root'));
 root.render(React.createElement(App));
 </script>
 </body>
