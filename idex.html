@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PT Manager</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💪</text></svg>"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0F1117;font-family:'Sora',sans-serif;}
+::-webkit-scrollbar{width:6px;}
+::-webkit-scrollbar-track{background:#0F1117;}
+::-webkit-scrollbar-thumb{background:#2A2F45;border-radius:3px;}
+select option{background:#1A1D27;color:#E8EAF0;}
+#root{min-height:100vh;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+window.storage = {
+  get: async function(key) {
+    try { const v = localStorage.getItem('ptmgr_' + key); return v ? { value: v } : null; } catch(e) { return null; }
+  },
+  set: async function(key, value) {
+    try { localStorage.setItem('ptmgr_' + key, value); return { value: value }; } catch(e) { return null; }
+  },
+  delete: async function(key) {
+    try { localStorage.removeItem('ptmgr_' + key); return { deleted: true }; } catch(e) { return null; }
+  }
+};
+</script>
+<script type="text/babel">
+const {useState, useEffect, useRef} = React;
+
+
+const C={bg:"#0F1117",surface:"#1A1D27",surfaceHover:"#21253A",border:"#2A2F45",accent:"#4F8EF7",accentSoft:"#1E3A6E",green:"#2ECC71",greenSoft:"#1A4A32",orange:"#F39C12",orangeSoft:"#4A3010",red:"#E74C3C",redSoft:"#4A1510",purple:"#9B59B6",purpleSoft:"#2E1A47",teal:"#1ABC9C",tealSoft:"#0E6655",text:"#E8EAF0",textMuted:"#7B82A0",textDim:"#4A5070"};
+const BADGE_CFG={palestra:{label:"Palestra",color:C.accent,bg:C.accentSoft},cardio:{label:"Cardio",color:C.green,bg:C.greenSoft},alimentazione:{label:"Alimentazione",color:C.orange,bg:C.orangeSoft},integratori:{label:"Integratori",color:C.purple,bg:C.purpleSoft},altro:{label:"Altro",color:C.textMuted,bg:"#1E2030"}};
+
+// ─── DIET ENGINE ─────────────────────────────────────────────────────────────
+function calcDiet(client,dayType){
+  const peso=parseFloat((client.weight||"75").replace(/[^\d.]/g,""))||75;
+  const goal=(client.goal||"").toLowerCase();
+  const isMassa=goal.includes("massa")||goal.includes("muscol")||goal.includes("aument");
+  const isDimagr=goal.includes("dimagr")||goal.includes("calo");
+  let prot,carb,fat;
+  if(isMassa){prot=Math.round(peso*2.0);carb=dayType==="palestra"?Math.round(peso*4.2):dayType==="cardio"?Math.round(peso*3.8):Math.round(peso*3.0);fat=Math.round(peso*1.0);}
+  else if(isDimagr){prot=Math.round(peso*2.2);carb=dayType==="palestra"?Math.round(peso*2.5):dayType==="cardio"?Math.round(peso*2.2):Math.round(peso*1.8);fat=Math.round(peso*0.8);}
+  else{prot=Math.round(peso*1.8);carb=dayType==="palestra"?Math.round(peso*3.5):dayType==="cardio"?Math.round(peso*3.2):Math.round(peso*2.5);fat=Math.round(peso*0.9);}
+  const kcal=prot*4+carb*4+fat*9;
+  const meals={
+    palestra:[
+      {nome:"Colazione",orario:"7:00–8:30",emoji:"☀️",alimenti:[{nome:"Uova intere",q:`${Math.max(2,Math.round(peso/25))} uova`,macro:`~${Math.max(2,Math.round(peso/25))*7}g prot`,note:"Strapazzate o sode"},{nome:"Fiocchi di latte / Skyr",q:`${Math.round(peso*1.8)}g`,macro:`~${Math.round(peso*0.22)}g prot`,note:""},{nome:"Avena",q:`${Math.round(peso*0.7)}g`,macro:`~${Math.round(peso*0.46)}g carb`,note:""},{nome:"Frutta fresca",q:"150g",macro:"~18g carb",note:""},{nome:"Noci / mandorle",q:"20g",macro:"~12g grassi",note:""}],regola:"Proteine PRIMA (uova + fiocchi), poi avena e frutta."},
+      {nome:"Pranzo",orario:"12:30–13:30",emoji:"🍽️",alimenti:[{nome:"Pollo / Tacchino / Manzo",q:`${Math.round(peso*2.2)}g cotti`,macro:`~${Math.round(peso*0.44)}g prot`,note:""},{nome:"Riso basmati / Pasta integrale",q:`${Math.round(peso*1.1)}g secchi`,macro:`~${Math.round(peso*0.86)}g carb`,note:""},{nome:"Verdure miste",q:"250g",macro:"~8g carb",note:""},{nome:"Olio EVO",q:"15ml",macro:"~14g grassi",note:"A crudo"}],regola:"Carne prima → verdure → riso/pasta."},
+      {nome:"Cena",orario:"19:30–20:30",emoji:"🌙",alimenti:[{nome:"Salmone / Merluzzo",q:`${Math.round(peso*2.5)}g cotti`,macro:`~${Math.round(peso*0.48)}g prot`,note:""},{nome:"Patate / Quinoa",q:`${Math.round(peso*1.6)}g cotte`,macro:`~${Math.round(peso*0.38)}g carb`,note:""},{nome:"Verdure al vapore",q:"300g",macro:"~10g carb",note:""},{nome:"Olio EVO",q:"15ml",macro:"~14g grassi",note:""}],regola:"Meno carb del pranzo. Proteina prima."},
+    ],
+    cardio:[
+      {nome:"Colazione (2-3h prima)",orario:"7:00–8:00",emoji:"☀️",alimenti:[{nome:"Yogurt greco 0%",q:`${Math.round(peso*2.2)}g`,macro:`~${Math.round(peso*0.2)}g prot`,note:""},{nome:"Banana",q:"1 media",macro:"~25g carb",note:""},{nome:"Pane integrale",q:"50g",macro:"~25g carb",note:""},{nome:"Burro arachidi",q:"10g",macro:"~5g grassi",note:""}],regola:"Pasto leggero 2-3h prima. Niente di pesante."},
+      {nome:"Pranzo (post cardio)",orario:"13:00–14:00",emoji:"🍽️",alimenti:[{nome:"Pollo / Uova",q:`${Math.round(peso*2.0)}g cotti`,macro:`~${Math.round(peso*0.4)}g prot`,note:""},{nome:"Riso / Pasta integrale",q:`${Math.round(peso*1.0)}g`,macro:`~${Math.round(peso*0.78)}g carb`,note:""},{nome:"Verdure",q:"200g",macro:"~7g carb",note:""},{nome:"Olio EVO",q:"12ml",macro:"~11g grassi",note:""}],regola:"Entro 45 min: proteine + carb per recuperare."},
+      {nome:"Cena",orario:"19:30–20:30",emoji:"🌙",alimenti:[{nome:"Pesce / Carne magra",q:`${Math.round(peso*2.2)}g`,macro:`~${Math.round(peso*0.42)}g prot`,note:""},{nome:"Verdure abbondanti",q:"350g",macro:"~12g carb",note:""},{nome:"Avocado",q:"60g",macro:"~10g grassi",note:""}],regola:"Cena leggera – proteine e verdure."},
+    ],
+    riposo:[
+      {nome:"Colazione",orario:"8:00–9:00",emoji:"☀️",alimenti:[{nome:"Uova",q:`${Math.max(2,Math.round(peso/28))} uova`,macro:"~14g prot",note:""},{nome:"Fiocchi di latte",q:`${Math.round(peso*1.5)}g`,macro:`~${Math.round(peso*0.18)}g prot`,note:""},{nome:"Avena (ridotta)",q:`${Math.round(peso*0.55)}g`,macro:`~${Math.round(peso*0.36)}g carb`,note:""},{nome:"Frutta",q:"120g",macro:"~15g carb",note:""}],regola:"Carb ridotti. Proteine invariate."},
+      {nome:"Pranzo",orario:"12:30–13:30",emoji:"🍽️",alimenti:[{nome:"Legumi + cereali",q:"200g + 80g",macro:"~28g prot / ~55g carb",note:""},{nome:"Verdure",q:"300g",macro:"~10g carb",note:""},{nome:"Olio EVO",q:"15ml",macro:"~14g grassi",note:""}],regola:"Carb -20/25% vs giorni allenamento."},
+      {nome:"Cena",orario:"19:30–20:30",emoji:"🌙",alimenti:[{nome:"Pesce / Tofu",q:`${Math.round(peso*2.0)}g`,macro:`~${Math.round(peso*0.38)}g prot`,note:""},{nome:"Insalata abbondante",q:"400g",macro:"~8g carb",note:""},{nome:"Avocado",q:"80g",macro:"~12g grassi",note:""}],regola:"Leggera. Focus proteine e verdure."},
+    ],
+  };
+  const notes={palestra:isMassa?"Giorno chiave per la crescita. Carb elevati attorno all'allenamento.":"Carb più elevati per la performance.",cardio:"Pasto leggero pre-cardio. Recupero con prot+carb entro 45 min.",riposo:"Carb ridotti -20/25%, proteine invariate. Il corpo si ripara oggi."};
+  return{macros:{prot,carb,fat,kcal},meals:meals[dayType],note:notes[dayType]};
+}
+
+
+// ─── STATIC DOC DATA ─────────────────────────────────────────────────────────
+const STATIC_DOCS={
+  "luigi-palestra":[
+    {section:"DATI",rows:[["Obiettivo","Massa muscolare / Mantenimento"],["Frequenza","3x/settimana – Lun / Mer / Ven"],["Peso","83 kg – 181 cm"],["Limitazioni","Deficit gamba sx – tendine rotuleo guarito"]]},
+    {section:"GIORNO A – PETTO + DORSALE (Lunedì ore 19:00)",rows:[["Panca Piana con Bilanciere","4x4-6 | 80kg→90kg | Rec 120s"],["Panca Inclinata Manubri","3x10-12 | 20kg→24kg | Rec 90s"],["Lat Machine","4x5-8 | 80kg→90kg | Rec 90s"],["Rematore con Bilanciere","3x10-12 | 60kg→70kg | Rec 90s"],["Trazioni alla Sbarra","3xmax | Rec 90s"]]},
+    {section:"GIORNO B – GAMBE + POTENZIAMENTO SX (Mercoledì ore 19:00)",rows:[["Squat con Bilanciere","4x10 | 60kg→75kg | Rec 120s"],["Stacco da Terra","4x10 | 60kg→80kg | Rec 150s"],["Calf Raises","4x20 | Rec 45s"],["⚡ Bulgaro Unilaterale sx","3x10/gamba | Rec 90s"],["⚡ Leg Extension Unilaterale sx","3x15 | Rec 60s"],["⚡ Leg Curl Unilaterale sx","3x15 | Eccentrica 3-4sec | Rec 60s"],["⚡ Step-up su box sx","3x12/gamba | Rec 75s"],["⚡ Nordic Curl (femorale)","3x6-8 | Assistito | Rec 90s"]]},
+    {section:"GIORNO C – SPALLE + BRACCIA + CORE (Venerdì ore 19:00)",rows:[["Shoulder Press Manubri","4x10-12 | Rec 75s"],["Alzate Laterali","3x12-15 | Rec 60s"],["Curl Bilanciere (Bicipiti)","4x10-12 | 12kg→16kg | Rec 60s"],["French Press (Tricipiti)","4x12 | Rec 60s"],["Plank","3x60sec | Rec 45s"]]},
+    {section:"OBIETTIVI CARICHI",rows:[["Panca Piana","80 kg x4 → 90 kg x4"],["Lat Machine","80 kg x5 → 90 kg x5"],["Squat","60 kg x10 → 75 kg x10"],["Curl Bicipiti","12 kg x10 → 14-16 kg x10"]]},
+  ],
+  "luigi-cardio":[
+    {section:"CORSA – MARTEDÌ ore 19:00",rows:[["Passo attuale","5:50 /km"],["Obiettivo","5:00 /km"],["Progressione","-5 sec/km ogni 3-4 settimane"]]},
+    {section:"PROGRESSIONE CORSA (16 sett.)",rows:[["Fase 1 – Sett. 1-4","5:40-5:45 /km – corsa continua"],["Fase 2 – Sett. 5-8","5:25-5:35 /km – fartlek"],["Fase 3 – Sett. 9-12","5:10-5:20 /km – ripetute 1km x5"],["Fase 4 – Sett. 13-16","5:00 /km – test gara"]]},
+    {section:"CICLISMO – SABATO ore 9:00",rows:[["Distanza attuale","~70 km"],["Obiettivo","100 km"],["Progressione","+5km ogni 2-3 uscite"],["FC target","65-75% FC max"]]},
+    {section:"PROGRESSIONE BICI (14 sett.)",rows:[["Fase 1 – Sett. 1-3","70-75 km – consolidamento"],["Fase 2 – Sett. 4-6","75-80 km – +pendenza"],["Fase 3 – Sett. 7-10","80-90 km – variare terreno"],["Fase 4 – Sett. 11-14","90-100 km – uscita target"]]},
+  ],
+  "alessandra-palestra":[
+    {section:"DATI",rows:[["Obiettivo","Mantenimento muscolare"],["Frequenza","2x/sett – Martedì ore 18:15 + Giovedì ore 17:15"],["Limitazioni","Spalle infiammate | Flessori corti | Stacco ESCLUSO"]]},
+    {section:"MARTEDÌ ore 18:15 – FORZA",rows:[["Squat con Bilanciere","4x10-12 | 20kg→25kg | Rec 90s"],["Hip Thrust con Bilanciere","4x12-15 | Corpo libero→20kg | Rec 75s"],["Bulgaro con Manubri","3x10/gamba | 6kg→10kg | Rec 75s"],["Affondi con Manubri","3x12/gamba | 10kg→14kg | Rec 75s"],["Lat Machine","3x10-12 | 25kg→30kg | Rec 75s"],["Trazioni alla Sbarra","3xmax | Rec 90s"]]},
+    {section:"GIOVEDÌ ore 17:15 – CIRCUITO 1 (x3 giri)",rows:[["Squat corpo libero","45 sec | Rec 20s"],["Curl Bilanciere (Bicipiti)","12 rip 4kg | Rec 20s"],["Salto della Corda","40 sec | Rec 60s tra giri"],["Plank","3x30-40sec"],["Dead Bug","3x10/lato"],["Glute Bridge","3x15"]]},
+    {section:"GIOVEDÌ – CIRCUITO 2 (x3 giri)",rows:[["Affondi con Manubri","12/gamba | Rec 20s"],["Jumping Jack","40 sec | Rec 60s tra giri"]]},
+    {section:"OBIETTIVI",rows:[["Hip Thrust","Corpo libero → 20 kg"],["Lat Machine","25 kg → 30 kg"],["Squat","20 kg → 25 kg"]]},
+  ],
+  "alessandra-cardio":[
+    {section:"CORSA – Mercoledì + Domenica",rows:[["Distanza","10 km – mantenimento"],["Passo","5:20 /km – nessun obiettivo cronometrico"],["Frequenza","2x/settimana"],["Filosofia","Corsa = salute, non performance"]]},
+    {section:"INDICAZIONI",rows:[["Riscaldamento","5 min camminata veloce"],["Passo consigliato","5:15-5:30 /km"],["Defaticamento","Stretching flessori 40 sec (flessori corti!)"]]},
+  ],
+};
+
+// ─── SUPPLEMENT ENGINE ───────────────────────────────────────────────────────
+function calcIntegratori(client) {
+  const peso = parseFloat((client.weight||"75").replace(/[^\d.]/g,"")) || 75;
+  const eta = parseInt(client.age) || 35;
+  const goal = (client.goal||"").toLowerCase();
+  const isMassa = goal.includes("massa")||goal.includes("muscol")||goal.includes("aument");
+  const isDimagr = goal.includes("dimagr")||goal.includes("calo");
+  const isMant = !isMassa && !isDimagr;
+
+  const lista = [];
+
+  // CREATINA – sempre utile per forza e massa
+  if (isMassa || (isMant && eta > 40)) {
+    lista.push({
+      nome: "Creatina monoidrato",
+      dose: "3-5g",
+      quando: "Dopo colazione (ogni giorno)",
+      whenAllenamento: "Giorni palestra: spostare vicino all'allenamento (pre o post)",
+      perche: "Aumenta la forza nelle serie brevi e intense, supporta la crescita muscolare e il recupero.",
+      utile: true,
+      priorita: "alta",
+      emoji: "⚡"
+    });
+  }
+
+  // VITAMINA D3 – fondamentale over 40, spesso carente
+  if (eta >= 40) {
+    lista.push({
+      nome: "Vitamina D3",
+      dose: "2000-4000 UI",
+      quando: "A pranzo (con il pasto ricco di grassi)",
+      whenAllenamento: "Stesso orario tutti i giorni",
+      perche: eta >= 50 ? "A "+eta+" anni spesso carente. Fondamentale per testosterone, forza muscolare e densità ossea." : "Supporta sistema immunitario, ormoni e assorbimento del calcio.",
+      utile: true,
+      priorita: "alta",
+      emoji: "☀️"
+    });
+  }
+
+  // OMEGA 3 – anti-infiammatorio, recupero
+  lista.push({
+    nome: "Omega 3 (EPA+DHA)",
+    dose: "2-3g",
+    quando: "A cena (con il pasto serale)",
+    whenAllenamento: "Stesso orario tutti i giorni",
+    perche: "Riduce l'infiammazione muscolare, migliora il recupero e supporta la salute cardiovascolare – utile anche per chi fa cardio.",
+    utile: true,
+    priorita: eta >= 45 || isMassa ? "alta" : "media",
+    emoji: "🐟"
+  });
+
+  // MAGNESIO – recupero notturno, sonno
+  if (isMassa || eta >= 40) {
+    lista.push({
+      nome: "Magnesio glicinate",
+      dose: "300-400mg",
+      quando: "30 min prima di dormire",
+      whenAllenamento: "Stesso orario tutti i giorni",
+      perche: "Migliora la qualità del sonno e il recupero muscolare notturno. Spesso carente in chi si allena regolarmente.",
+      utile: true,
+      priorita: "media",
+      emoji: "🌙"
+    });
+  }
+
+  // PROTEINE IN POLVERE – se difficile raggiungere il fabbisogno
+  const protFabbisogno = Math.round(peso * (isMassa ? 2.0 : 1.8));
+  lista.push({
+    nome: "Proteine in polvere (whey / vegetale)",
+    dose: "25-30g (1 misurino)",
+    quando: "Entro 30 min dopo l'allenamento",
+    whenAllenamento: "Solo nei giorni di palestra – non necessario nei giorni di riposo",
+    perche: `Opzionale: usare solo se difficile raggiungere i ${protFabbisogno}g di proteine giornalieri solo con il cibo. Non è indispensabile se l'alimentazione è curata.`,
+    utile: false,
+    priorita: "bassa",
+    emoji: "🥤"
+  });
+
+  // VITAMINA C + ZINCO – sistema immunitario, over 50
+  if (eta >= 50) {
+    lista.push({
+      nome: "Vitamina C + Zinco",
+      dose: "500mg Vit.C + 10mg Zinco",
+      quando: "A colazione",
+      whenAllenamento: "Stesso orario tutti i giorni",
+      perche: "Over 50: supporta sistema immunitario e recupero. Lo zinco aiuta anche la produzione di testosterone.",
+      utile: true,
+      priorita: "media",
+      emoji: "🍊"
+    });
+  }
+
+  // BCAA – solo per chi si allena a digiuno
+  // (non aggiungiamo di default)
+
+  return lista;
+}
+
+// ─── DEFAULT DATA ─────────────────────────────────────────────────────────────
+const DEF_CLIENTS=[
+  {id:"luigi-martinelli",name:"Luigi Martinelli",dob:"02/09/1970",age:"55",weight:"83 kg",height:"181 cm",goal:"Massa muscolare / Mantenimento",notes:"Deficit gamba sx – tendine rotuleo guarito.\nPanca 80→90kg | Squat 60→75kg\nCorsa 5:50→5:00/km | Bici 70→100km",integratori:[
+    {nome:"Creatina monoidrato",dose:"3g",quando:"Dopo colazione (ogni mattina)",whenAllenamento:"Giorni palestra: spostare vicino all'allenamento (pre o post)",perche:"Aumenta la forza nelle serie brevi e intense, supporta la crescita muscolare e il recupero.",utile:true,priorita:"alta",emoji:"⚡",custom:true},
+    {nome:"Vitamina D3",dose:"2000-4000 UI",quando:"A pranzo (con olio EVO)",whenAllenamento:"Stesso orario tutti i giorni",perche:"A 55 anni spesso carente. Fondamentale per testosterone, forza muscolare e densità ossea.",utile:true,priorita:"alta",emoji:"☀️",custom:true},
+    {nome:"Omega 3 (EPA+DHA)",dose:"2-3g",quando:"A cena",whenAllenamento:"Stesso orario tutti i giorni",perche:"Riduce infiammazione muscolare (utile per femorale sx), migliora recupero e salute cardiovascolare.",utile:true,priorita:"alta",emoji:"🐟",custom:true},
+    {nome:"Magnesio glicinate",dose:"300-400mg",quando:"30 min prima di dormire",whenAllenamento:"Stesso orario tutti i giorni",perche:"Migliora qualità del sonno e recupero muscolare notturno.",utile:true,priorita:"media",emoji:"🌙",custom:true},
+    {nome:"Vitamina C + Zinco",dose:"500mg + 10mg",quando:"A colazione",whenAllenamento:"Stesso orario tutti i giorni",perche:"Over 50: supporta sistema immunitario e recupero. Lo zinco aiuta la produzione di testosterone.",utile:true,priorita:"media",emoji:"🍊",custom:true},
+    {nome:"Proteine in polvere (whey)",dose:"25-30g",quando:"Entro 30 min post-allenamento",whenAllenamento:"Solo giorni di palestra",perche:"Opzionale: usare solo se difficile raggiungere i 166g/die di proteine col cibo.",utile:false,priorita:"bassa",emoji:"🥤",custom:true},
+  ],docs:[{id:"d1",name:"Scheda Palestra",type:"palestra",date:"2026-05-01",contentKey:"luigi-palestra"},{id:"d2",name:"Scheda Cardio",type:"cardio",date:"2026-05-01",contentKey:"luigi-cardio"},{id:"d3",name:"Scheda Alimentazione",type:"alimentazione",date:"2026-05-01",contentKey:"diet"},{id:"d4",name:"Scheda Integratori",type:"integratori",date:"2026-05-01",contentKey:"integratori"}],progress:[{id:"p1",date:"2026-05-01",panca:"80",squat:"60",stacco:"60",peso:"83",note:"Inizio programma"}],createdAt:"2026-05-01"},
+  {id:"alessandra-inverardi",name:"Alessandra Inverardi",dob:"",age:"50",weight:"54 kg",height:"168 cm",goal:"Mantenimento muscolare",notes:"Spalle infiammate – no overhead.\nFlessori corti – stretching obbligatorio.\nStacco escluso – Hip Thrust.\nCorsa 2x/sett 10km a 5:20/km.",integratori:[{nome:"Vitamina D3",dose:"2000 UI",quando:"A pranzo (con grassi)",whenAllenamento:"Stesso orario tutti i giorni",perche:"Over 50 donna: fondamentale per ossa, muscoli e umore. Spesso carente.",utile:true,priorita:"alta",emoji:"☀️",custom:true},{nome:"Omega 3 (EPA+DHA)",dose:"2g",quando:"A cena",whenAllenamento:"Stesso orario – agisce anche di notte",perche:"Anti-infiammatorio naturale: riduce l infiammazione delle spalle e il dolore muscolare post-allenamento.",utile:true,priorita:"alta",emoji:"🐟",custom:true},{nome:"Magnesio glicinate",dose:"300mg",quando:"30 min prima di dormire",whenAllenamento:"Stesso orario tutti i giorni",perche:"Migliora qualita del sonno e recupero muscolare. Riduce tensioni muscolari.",utile:true,priorita:"media",emoji:"🌙",custom:true},{nome:"Vitamina C + Zinco",dose:"500mg + 10mg",quando:"A colazione",whenAllenamento:"Stesso orario tutti i giorni",perche:"Sistema immunitario + sintesi di collagene per i tendini delle spalle infiammate.",utile:true,priorita:"media",emoji:"🍊",custom:true},{nome:"Calcio + Vitamina K2",dose:"500mg + 100mcg",quando:"A cena (separato dall Omega 3 di 2 ore)",whenAllenamento:"Stesso orario tutti i giorni",perche:"Over 50 donna: prevenzione osteoporosi. La K2 dirige il calcio verso le ossa e non le arterie.",utile:true,priorita:"alta",emoji:"🦴",custom:true}],docs:[{id:"d1",name:"Scheda Palestra",type:"palestra",date:"2026-05-01",contentKey:"alessandra-palestra"},{id:"d2",name:"Scheda Cardio",type:"cardio",date:"2026-05-01",contentKey:"alessandra-cardio"},{id:"d3",name:"Scheda Alimentazione",type:"alimentazione",date:"2026-05-01",contentKey:"diet"},{id:"d4",name:"Scheda Integratori",type:"integratori",date:"2026-05-01",contentKey:"integratori"}],progress:[{id:"p1",date:"2026-05-01",panca:"",squat:"20",stacco:"",peso:"54",note:"Inizio programma"}],createdAt:"2026-05-01"},
+];
+
+const DEF_GROUPS=[
+  {
+    id:"gruppo-mercoledi",name:"Gruppo Mercoledì Sera",emoji:"🌙",
+    giorno:"Mercoledì ore 20:00",livello:"Principianti",
+    obiettivo:"Stato fisico ottimale – esercizi fondamentali con carichi di eccellenza",
+    colore:C.teal,coloreSoft:C.tealSoft,
+    partecipanti:[
+      {id:"sonia",name:"Sonia",age:"~38",weight:"",goal:"Stato fisico ottimale",note:""},
+      {id:"clara",name:"Clara",age:"~40",weight:"",goal:"Stato fisico ottimale",note:""},
+      {id:"alessia",name:"Alessia",age:"~35",weight:"",goal:"Stato fisico ottimale",note:""},
+      {id:"elena",name:"Elena",age:"28",weight:"",goal:"Stato fisico ottimale",note:"La più giovane del gruppo"},
+    ],
+    livelliBadge:[
+      {livello:"Livello 1",tempo:"3-6 mesi",color:C.green,esercizi:[["Squat","20-30 kg"],["Stacco","25-35 kg"],["Panca","15-20 kg"],["Curl Bicipiti","6-8 kg cad."],["Tricipiti","8-10 kg"]]},
+      {livello:"Livello 2",tempo:"6-12 mesi",color:C.orange,esercizi:[["Squat","40-50 kg"],["Stacco","50-60 kg"],["Panca","25-30 kg"],["Curl Bicipiti","10-12 kg cad."],["Tricipiti","12-15 kg"]]},
+      {livello:"Livello 3 – Ottimale",tempo:"12-18 mesi",color:C.purple,esercizi:[["Squat","60-70 kg (~peso corporeo)"],["Stacco","70-80 kg (1-1.2x peso)"],["Panca","35-40 kg"],["Curl Bicipiti","12-14 kg cad."],["Tricipiti","15-18 kg"]]},
+    ],
+    note:"Priorità assoluta alla tecnica nelle prime 8-12 settimane. I 3 livelli sono i badge motivazionali del percorso.",
+    createdAt:"2026-05-01",
+  },
+  {
+    id:"gruppo-14",name:"Gruppo Ore 14",emoji:"☀️",
+    giorno:"Lunedì / Mercoledì / Venerdì ore 14:00",livello:"Intermedio",
+    obiettivo:"Tonificazione (3) + Dimagrimento (1) – Forza / Core / Circuito con rotazione mensile",
+    colore:C.purple,coloreSoft:C.purpleSoft,
+    partecipanti:[
+      {id:"flora",name:"Flora",age:"~30",weight:"",goal:"Tonificazione",note:""},
+      {id:"valeria",name:"Valeria",age:"~30",weight:"",goal:"Tonificazione",note:""},
+      {id:"nicole",name:"Nicole",age:"~30",weight:"",goal:"Tonificazione",note:""},
+      {id:"floria",name:"Floria",age:"~30",weight:"",goal:"Dimagrimento",note:"Si adegua al gruppo – ottimo stimolo reciproco"},
+    ],
+    rotazione:[
+      {mese:"Mese 1",lun:"💪 Forza",mer:"🧘 Core",ven:"🔄 Circuito"},
+      {mese:"Mese 2",lun:"🧘 Core",mer:"🔄 Circuito",ven:"💪 Forza"},
+      {mese:"Mese 3",lun:"🔄 Circuito",mer:"💪 Forza",ven:"🧘 Core"},
+    ],
+    note:"Rotazione mensile per evitare l'adattamento e mantenere la motivazione alta.",
+    createdAt:"2026-05-01",
+  },
+];
+
+const uid=()=>Math.random().toString(36).slice(2,10);
+const today=()=>new Date().toISOString().slice(0,10);
+
+// ─── COMPONENTS ──────────────────────────────────────────────────────────────
+function Badge({type}){const b=BADGE_CFG[type]||BADGE_CFG.altro;return <span style={{display:"inline-block",fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase",padding:"3px 9px",borderRadius:20,color:b.color,background:b.bg,border:`1px solid ${b.color}33`}}>{b.label}</span>;}
+function Avatar({name,color}){const i=name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();const h=color||name.split("").reduce((a,c)=>a+c.charCodeAt(0),0)%360;const isHex=color&&color.startsWith("#");return <div style={{width:44,height:44,borderRadius:"50%",flexShrink:0,background:isHex?color:`hsl(${h},55%,28%)`,border:`2px solid ${isHex?color+"88":`hsl(${h},55%,45%)`}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:isHex?"#fff":`hsl(${h},80%,80%)`,fontFamily:"'DM Mono',monospace"}}>{i}</div>;}
+function Btn({onClick,children,variant="primary",small,disabled}){const[hov,setHov]=useState(false);const bg=variant==="primary"?(hov?"#3A7AE8":C.accent):variant==="danger"?(hov?"#C0392B":C.red):variant==="green"?(hov?"#27AE60":C.green):variant==="teal"?(hov?"#17A589":C.teal):variant==="purple"?(hov?"#8E44AD":C.purple):hov?C.surfaceHover:C.surface;return <button onClick={onClick} disabled={disabled} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{background:bg,border:`1px solid ${variant==="ghost"?C.border:"transparent"}`,color:"#fff",borderRadius:8,padding:small?"6px 14px":"10px 20px",fontSize:small?13:14,fontWeight:600,cursor:disabled?"not-allowed":"pointer",transition:"all .15s",opacity:disabled?.5:1}}>{children}</button>;}
+function IconBtn({onClick,title,children,danger}){const[hov,setHov]=useState(false);return <button onClick={onClick} title={title} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{background:hov?(danger?C.redSoft:C.surfaceHover):"transparent",border:"none",cursor:"pointer",borderRadius:8,padding:"6px 8px",color:danger?C.red:C.textMuted,transition:"all .15s",display:"flex",alignItems:"center"}}>{children}</button>;}
+function Modal({title:t,onClose,children,wide}){return <div style={{position:"fixed",inset:0,background:"#000000CC",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:"100%",maxWidth:wide?780:480,maxHeight:"92vh",overflowY:"auto",boxShadow:"0 24px 80px #00000088"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h3 style={{margin:0,color:C.text,fontSize:18}}>{t}</h3><IconBtn onClick={onClose}><span style={{fontSize:18}}>✕</span></IconBtn></div>{children}</div></div>;}
+function Inp({label,value,onChange,type="text",placeholder,multiline}){const s={width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"'DM Mono',monospace",outline:"none",boxSizing:"border-box",resize:multiline?"vertical":undefined,minHeight:multiline?80:undefined};return <div style={{marginBottom:16}}>{label&&<label style={{display:"block",fontSize:12,color:C.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>{label}</label>}{multiline?<textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={s}/>:<input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={s}/>}</div>;}
+function Sel({label,value,onChange,options}){return <div style={{marginBottom:16}}>{label&&<label style={{display:"block",fontSize:12,color:C.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>{label}</label>}<select value={value} onChange={e=>onChange(e.target.value)} style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"'DM Mono',monospace",outline:"none"}}>{options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select></div>;}
+function NotesEditor({value,onChange}){const[loc,setLoc]=useState(value);const[saved,setSaved]=useState(true);const t=useRef(null);const change=v=>{setLoc(v);setSaved(false);clearTimeout(t.current);t.current=setTimeout(()=>{onChange(v);setSaved(true);},900);};return <div><textarea value={loc} onChange={e=>change(e.target.value)} placeholder="Note cliniche..." style={{width:"100%",boxSizing:"border-box",minHeight:240,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:18,color:C.text,fontSize:14,fontFamily:"'DM Mono',monospace",outline:"none",resize:"vertical",lineHeight:1.7}}/><div style={{fontSize:12,color:saved?C.green:C.orange,marginTop:8,textAlign:"right"}}>{saved?"✓ Salvato":"Salvataggio..."}</div></div>;}
+function Empty({icon,text}){return <div style={{textAlign:"center",padding:"48px 0",color:C.textMuted}}><div style={{fontSize:36,marginBottom:10}}>{icon}</div><div style={{fontSize:14}}>{text}</div></div>;}
+
+// ─── DIET VIEWER ─────────────────────────────────────────────────────────────
+function DietViewer({client}){
+  const[dayType,setDayType]=useState("palestra");
+  const diet=calcDiet(client,dayType);
+  const DL={palestra:"💪 Palestra",cardio:"🏃 Cardio",riposo:"😴 Riposo"};
+  const DC={palestra:C.accent,cardio:C.green,riposo:C.textMuted};
+  return <div>
+    <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+      {["palestra","cardio","riposo"].map(d=><button key={d} onClick={()=>setDayType(d)} style={{background:dayType===d?DC[d]:C.surface,border:`1px solid ${dayType===d?DC[d]:C.border}`,color:dayType===d?"#fff":C.textMuted,borderRadius:8,padding:"8px 16px",fontSize:13,fontWeight:600,cursor:"pointer",transition:"all .15s"}}>{DL[d]}</button>)}
+    </div>
+    <div style={{background:C.surfaceHover,borderLeft:`3px solid ${DC[dayType]}`,borderRadius:"0 8px 8px 0",padding:"10px 16px",marginBottom:20,fontSize:13,color:C.textMuted,fontStyle:"italic"}}>{diet.note}</div>
+    <div style={{display:"flex",gap:12,marginBottom:24,flexWrap:"wrap"}}>
+      {[["Proteine",diet.macros.prot,"g",C.accent],["Carboidrati",diet.macros.carb,"g",C.orange],["Grassi",diet.macros.fat,"g",C.green],["Calorie",diet.macros.kcal,"kcal",C.purple]].map(([l,v,u,color])=>(
+        <div key={l} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 16px",flex:1,minWidth:90,textAlign:"center"}}>
+          <div style={{fontSize:20,fontWeight:800,color,fontFamily:"'DM Mono',monospace"}}>{v}<span style={{fontSize:11,color:C.textMuted}}>{u}</span></div>
+          <div style={{fontSize:11,color:C.textMuted,marginTop:2}}>{l}</div>
+        </div>
+      ))}
+    </div>
+    {diet.meals.map((meal,mi)=>(
+      <div key={mi} style={{marginBottom:20}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+          <span style={{fontSize:20}}>{meal.emoji}</span>
+          <div><div style={{fontWeight:700,fontSize:15}}>{meal.nome}</div><div style={{fontSize:12,color:C.textMuted,fontFamily:"'DM Mono',monospace"}}>{meal.orario}</div></div>
+        </div>
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",marginBottom:8}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:8,padding:"6px 14px",background:C.surfaceHover,borderBottom:`1px solid ${C.border}`}}>
+            <span style={{fontSize:11,color:C.textMuted,textTransform:"uppercase",letterSpacing:1}}>Alimento</span>
+            <span style={{fontSize:11,color:C.textMuted,textTransform:"uppercase",letterSpacing:1,textAlign:"right",minWidth:70}}>Quantità</span>
+            <span style={{fontSize:11,color:C.textMuted,textTransform:"uppercase",letterSpacing:1,textAlign:"right",minWidth:80}}>Macros</span>
+          </div>
+          {meal.alimenti.map((a,ai)=>(
+            <div key={ai} style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:8,padding:"9px 14px",borderBottom:ai<meal.alimenti.length-1?`1px solid ${C.border}33`:"none",background:ai%2===0?"transparent":C.surfaceHover+"44"}}>
+              <span style={{fontSize:13,color:C.text}}>{a.nome}{a.note&&<span style={{fontSize:11,color:C.textDim,marginLeft:8}}>{a.note}</span>}</span>
+              <span style={{fontSize:13,color:C.orange,fontFamily:"'DM Mono',monospace",textAlign:"right",whiteSpace:"nowrap"}}>{a.q}</span>
+              <span style={{fontSize:12,color:C.accent,fontFamily:"'DM Mono',monospace",textAlign:"right",whiteSpace:"nowrap"}}>{a.macro}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{fontSize:12,color:C.textMuted,fontStyle:"italic",paddingLeft:4}}><span style={{color:DC[dayType],fontWeight:600}}>Regola: </span>{meal.regola}</div>
+      </div>
+    ))}
+    <div style={{background:C.surfaceHover,border:`1px solid ${C.border}`,borderRadius:10,padding:16,marginTop:8}}>
+      <div style={{fontSize:12,fontWeight:700,color:C.textMuted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Regole fisse – tutti i giorni</div>
+      {["Idratazione: min 2.5 litri/die","Ordine: proteine PRIMA → verdure → carboidrati","3 pasti – nessuno spuntino","Olio EVO sempre a crudo"].map((r,i)=>(
+        <div key={i} style={{display:"flex",gap:8,marginBottom:6,fontSize:13,color:C.textMuted}}><span style={{color:C.green}}>✓</span>{r}</div>
+      ))}
+    </div>
+  </div>;
+}
+
+// ─── GROUP CARD ──────────────────────────────────────────────────────────────
+function GroupCard({group,onClick}){
+  const[hov,setHov]=useState(false);
+  return <div onClick={onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{background:hov?C.surfaceHover:C.surface,border:`1px solid ${hov?group.colore+"55":C.border}`,borderRadius:14,padding:"18px 22px",cursor:"pointer",transition:"all .18s",display:"flex",gap:16,alignItems:"center"}}>
+    <div style={{width:44,height:44,borderRadius:"50%",flexShrink:0,background:group.colore+"22",border:`2px solid ${group.colore}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{group.emoji}</div>
+    <div style={{flex:1}}>
+      <div style={{fontWeight:700,fontSize:16,marginBottom:4,color:C.text}}>{group.name}</div>
+      <div style={{fontSize:13,color:C.textMuted,marginBottom:6}}>📅 {group.giorno}</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:20,background:group.colore+"22",color:group.colore,border:`1px solid ${group.colore}44`}}>{group.livello}</span>
+        <span style={{fontSize:12,color:C.textDim,fontFamily:"'DM Mono',monospace"}}>{group.partecipanti.length} partecipanti</span>
+      </div>
+    </div>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textDim} strokeWidth="2" style={{flexShrink:0}}><path d="M9 18l6-6-6-6"/></svg>
+  </div>;
+}
+
+// ─── GROUP DETAIL ─────────────────────────────────────────────────────────────
+function GroupDetail({group,onBack}){
+  const[tab,setTab]=useState("partecipanti");
+  const isMer=group.id==="gruppo-mercoledi";
+  const is14=group.id==="gruppo-14";
+  return <div style={{maxWidth:900,margin:"0 auto",padding:"28px 24px"}}>
+    <div style={{background:C.surface,border:`1px solid ${group.colore}44`,borderRadius:16,padding:24,marginBottom:24}}>
+      <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
+        <div style={{width:52,height:52,borderRadius:"50%",background:group.colore+"22",border:`2px solid ${group.colore}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{group.emoji}</div>
+        <div style={{flex:1}}>
+          <h2 style={{margin:"0 0 6px",fontSize:20,fontWeight:800}}>{group.name}</h2>
+          <div style={{fontSize:13,color:C.textMuted,marginBottom:6}}>📅 {group.giorno}</div>
+          <div style={{fontSize:13,color:group.colore,fontWeight:600,marginBottom:8}}>🎯 {group.obiettivo}</div>
+          {group.note&&<div style={{fontSize:12,color:C.textDim,fontStyle:"italic"}}>{group.note}</div>}
+        </div>
+      </div>
+    </div>
+
+    <div style={{display:"flex",gap:4,marginBottom:20,background:C.surface,padding:4,borderRadius:12,border:`1px solid ${C.border}`,width:"fit-content"}}>
+      {[["partecipanti","👥 Partecipanti"],["programma","📋 Programma"],["obiettivi","🏆 Obiettivi"]].map(([t,l])=>(
+        <button key={t} onClick={()=>setTab(t)} style={{background:tab===t?group.colore:"transparent",border:"none",borderRadius:8,padding:"8px 16px",color:tab===t?"#fff":C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer",transition:"all .15s"}}>{l}</button>
+      ))}
+    </div>
+
+    {tab==="partecipanti"&&<div>
+      <h3 style={{margin:"0 0 16px",fontSize:16,fontWeight:700}}>Partecipanti ({group.partecipanti.length})</h3>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {group.partecipanti.map(p=>(
+          <div key={p.id} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 18px",display:"flex",gap:14,alignItems:"center"}}>
+            <Avatar name={p.name}/>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:15,marginBottom:3}}>{p.name}</div>
+              <div style={{display:"flex",gap:12,fontSize:12,color:C.textMuted,fontFamily:"'DM Mono',monospace"}}>
+                {p.age&&<span>🎂 {p.age} anni</span>}
+                {p.weight&&<span>⚖️ {p.weight}</span>}
+                <span style={{color:group.colore}}>🎯 {p.goal}</span>
+              </div>
+              {p.note&&<div style={{marginTop:4,fontSize:12,color:C.textDim,fontStyle:"italic"}}>{p.note}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>}
+
+    {tab==="programma"&&<div>
+      {isMer&&<div>
+        <h3 style={{margin:"0 0 12px",fontSize:16,fontWeight:700}}>Schema sessione – Mercoledì ore 20:00</h3>
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:20}}>
+          {[["🔥 Riscaldamento","8-10 min","Cyclette + mobilità articolare + stretching flessori"],["💪 Gambe + Glutei","~20 min","Squat, Hip Thrust, Affondi, Stacco Rumeno"],["💪 Schiena + Spalle","~10 min","Lat Machine, Rematore, Shoulder Press leggero"],["💪 Braccia","~8 min","Curl Bicipiti + Tricipiti"],["🧘 Defaticamento","5 min","Stretching statico completo"]].map(([nome,durata,desc],i)=>(
+            <div key={i} style={{display:"flex",gap:12,padding:"10px 0",borderBottom:i<4?`1px solid ${C.border}33`:"none"}}>
+              <div style={{minWidth:180,fontWeight:600,fontSize:13,color:C.text}}>{nome}</div>
+              <div style={{minWidth:60,fontSize:12,color:group.colore,fontFamily:"'DM Mono',monospace"}}>{durata}</div>
+              <div style={{fontSize:13,color:C.textMuted}}>{desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>}
+      {is14&&<div>
+        <h3 style={{margin:"0 0 12px",fontSize:16,fontWeight:700}}>Rotazione mensile – Lun / Mer / Ven ore 14:00</h3>
+        {group.rotazione.map((r,i)=>(
+          <div key={i} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:16,marginBottom:10}}>
+            <div style={{fontWeight:700,fontSize:14,color:group.colore,marginBottom:10}}>{r.mese}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+              {[["Lunedì",r.lun],["Mercoledì",r.mer],["Venerdì",r.ven]].map(([g,s])=>(
+                <div key={g} style={{background:C.surfaceHover,borderRadius:8,padding:"10px 14px",textAlign:"center"}}>
+                  <div style={{fontSize:11,color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>{g}</div>
+                  <div style={{fontSize:14,fontWeight:700,color:C.text}}>{s}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        <div style={{background:C.surfaceHover,borderRadius:10,padding:12,fontSize:13,color:C.textMuted,fontStyle:"italic",marginTop:8}}>
+          Dal Mese 4 si ripete il ciclo con carichi più elevati. Revisione programma ogni mese con il cambio rotazione.
+        </div>
+      </div>}
+    </div>}
+
+    {tab==="obiettivi"&&<div>
+      {isMer&&<div>
+        <h3 style={{margin:"0 0 8px",fontSize:16,fontWeight:700}}>I 3 Livelli – Badge motivazionali</h3>
+        <p style={{margin:"0 0 20px",fontSize:13,color:C.textMuted}}>Ogni partecipante sa esattamente dove si trova e dove deve arrivare. I livelli sono conquiste da celebrare!</p>
+        {group.livelliBadge.map((liv,li)=>(
+          <div key={li} style={{background:C.surface,border:`1px solid ${liv.color}44`,borderRadius:12,padding:18,marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+              <span style={{fontSize:20}}>{li===0?"🥉":li===1?"🥈":"🏆"}</span>
+              <div>
+                <div style={{fontWeight:700,fontSize:15,color:liv.color}}>{liv.livello}</div>
+                <div style={{fontSize:12,color:C.textMuted,fontFamily:"'DM Mono',monospace"}}>{liv.tempo}</div>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              {liv.esercizi.map(([ex,kg])=>(
+                <div key={ex} style={{background:liv.color+"11",borderRadius:8,padding:"6px 12px",border:`1px solid ${liv.color}33`}}>
+                  <div style={{fontSize:11,color:C.textMuted}}>{ex}</div>
+                  <div style={{fontSize:14,fontWeight:700,color:liv.color,fontFamily:"'DM Mono',monospace"}}>{kg}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>}
+      {is14&&<div>
+        <h3 style={{margin:"0 0 8px",fontSize:16,fontWeight:700}}>Obiettivi per tipo di sessione</h3>
+        {[["💪 Forza",C.accent,"Aumentare i carichi del 2.5-5% ogni 2 settimane con tecnica solida"],["🧘 Core",C.green,"Progressione dalla versione base alla versione avanzata di ogni esercizio"],["🔄 Circuito",C.purple,"Aumentare durata intervalli o ridurre recuperi ogni 3-4 settimane"]].map(([nome,color,desc])=>(
+          <div key={nome} style={{background:C.surface,border:`1px solid ${color}44`,borderRadius:12,padding:16,marginBottom:10,display:"flex",gap:12,alignItems:"center"}}>
+            <div style={{fontSize:24,flexShrink:0}}>{nome.split(" ")[0]}</div>
+            <div><div style={{fontWeight:700,fontSize:14,color,marginBottom:4}}>{nome}</div><div style={{fontSize:13,color:C.textMuted}}>{desc}</div></div>
+          </div>
+        ))}
+      </div>}
+    </div>}
+  </div>;
+}
+
+// ─── CLIENT CARD ─────────────────────────────────────────────────────────────
+function ClientCard({client,onClick}){const[hov,setHov]=useState(false);const dc=(client.docs||[]).length;const lp=(client.progress||[]).slice(-1)[0];return <div onClick={onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{background:hov?C.surfaceHover:C.surface,border:`1px solid ${hov?C.accent+"55":C.border}`,borderRadius:14,padding:"18px 22px",cursor:"pointer",transition:"all .18s",display:"flex",gap:16,alignItems:"center"}}><Avatar name={client.name}/><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:5,flexWrap:"wrap"}}><span style={{fontSize:16,fontWeight:700}}>{client.name}</span>{client.age&&<span style={{fontSize:12,color:C.textMuted,fontFamily:"'DM Mono',monospace"}}>{client.age} anni</span>}{client.weight&&<span style={{fontSize:12,color:C.textMuted,fontFamily:"'DM Mono',monospace"}}>{client.weight}</span>}</div>{client.goal&&<div style={{fontSize:13,color:C.textMuted,marginBottom:8}}>🎯 {client.goal}</div>}<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{(client.docs||[]).map(d=><Badge key={d.id} type={d.type}/>)}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:12,color:C.textMuted,fontFamily:"'DM Mono',monospace"}}>{dc} schede</div>{lp?.peso&&<div style={{fontSize:12,color:C.textDim,fontFamily:"'DM Mono',monospace"}}>{lp.peso} kg</div>}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textDim} strokeWidth="2" style={{marginTop:6}}><path d="M9 18l6-6-6-6"/></svg></div></div>;}
+
+function AddClientModal({onClose,onSave,initial={},title="Nuovo cliente"}){const[f,setF]=useState({name:initial.name||"",dob:initial.dob||"",age:initial.age||"",weight:initial.weight||"",height:initial.height||"",goal:initial.goal||""});const s=k=>v=>setF(p=>({...p,[k]:v}));const handleSave=()=>{
+    const dietDoc={id:uid(),name:"Scheda Alimentazione",type:"alimentazione",date:today(),contentKey:"diet"};
+    const docs=initial.docs||[dietDoc];
+    const hasDiet=docs.some(x=>x.contentKey==="diet");
+    // Parse integratori from text
+    let integratori=initial.integratori||[];
+    if(f.integratoriTesto&&f.integratoriTesto.trim()){
+      integratori=f.integratoriTesto.split("\n").filter(Boolean).map(line=>{
+        const parts=line.split("–").map(s=>s.trim());
+        return{nome:parts[0]||line,dose:parts[1]||"",momento:parts[2]||"",note:"",utile:true};
+      });
+    }
+    onSave({...f,integratori,docs:initial.id?initial.docs:hasDiet?docs:[...docs,dietDoc]});
+  };return <Modal title={title} onClose={onClose}><Inp label="Nome e cognome *" value={f.name} onChange={s("name")} placeholder="Es. Mario Rossi"/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Inp label="Data di nascita" value={f.dob} onChange={s("dob")} placeholder="GG/MM/AAAA"/><Inp label="Età" value={f.age} onChange={s("age")} placeholder="Es. 40"/><Inp label="Peso (es. 75 kg)" value={f.weight} onChange={s("weight")} placeholder="Es. 75 kg"/><Inp label="Altezza" value={f.height} onChange={s("height")} placeholder="Es. 178 cm"/></div><Inp label="Obiettivo" value={f.goal} onChange={s("goal")} placeholder="Es. Massa muscolare..."/><div style={{marginBottom:16}}>
+    <label style={{display:"block",fontSize:12,color:C.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Integratori (opzionale)</label>
+    <div style={{fontSize:12,color:C.textMuted,marginBottom:8}}>Es: Creatina 3g – dopo colazione | Vitamina D 2000UI – pranzo</div>
+    <textarea value={f.integratoriTesto||""} onChange={e=>setF(p=>({...p,integratoriTesto:e.target.value}))} placeholder="Nome – dose – momento di assunzione" style={{width:"100%",background:C.bg,border:"1px solid "+C.border,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"'DM Mono',monospace",outline:"none",boxSizing:"border-box",resize:"vertical",minHeight:70}}/>
+  </div>
+  <div style={{background:C.surfaceHover,borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:12,color:C.textMuted}}>💡 La scheda alimentazione viene generata automaticamente in base al peso e all'obiettivo.</div><div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="ghost" onClick={onClose}>Annulla</Btn><Btn onClick={handleSave} disabled={!f.name.trim()}>Salva</Btn></div></Modal>;}
+function AddDocModal({onClose,onSave}){const[f,setF]=useState({name:"",type:"palestra",notes:""});const s=k=>v=>setF(p=>({...p,[k]:v}));return <Modal title="Aggiungi documento" onClose={onClose}><Inp label="Nome *" value={f.name} onChange={s("name")} placeholder="Es. Scheda Palestra"/><Sel label="Tipo" value={f.type} onChange={s("type")} options={[{v:"palestra",l:"💪 Palestra"},{v:"cardio",l:"🏃 Cardio"},{v:"alimentazione",l:"🥗 Alimentazione"},{v:"altro",l:"📄 Altro"}]}/><Inp label="Note" value={f.notes} onChange={s("notes")} multiline/><div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}><Btn variant="ghost" onClick={onClose}>Annulla</Btn><Btn onClick={()=>onSave(f)} disabled={!f.name.trim()}>Aggiungi</Btn></div></Modal>;}
+function AddProgressModal({onClose,onSave}){const[f,setF]=useState({date:today(),peso:"",panca:"",squat:"",stacco:"",note:""});const s=k=>v=>setF(p=>({...p,[k]:v}));return <Modal title="Registra progresso" onClose={onClose} wide><Inp label="Data" value={f.date} onChange={s("date")} type="date"/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Inp label="Peso (kg)" value={f.peso} onChange={s("peso")} placeholder="Es. 83"/><Inp label="Panca (kg)" value={f.panca} onChange={s("panca")} placeholder="Es. 80"/><Inp label="Squat (kg)" value={f.squat} onChange={s("squat")} placeholder="Es. 60"/><Inp label="Stacco (kg)" value={f.stacco} onChange={s("stacco")} placeholder="Es. 60"/></div><Inp label="Note" value={f.note} onChange={s("note")} multiline/><div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}><Btn variant="ghost" onClick={onClose}>Annulla</Btn><Btn onClick={()=>onSave(f)}>Salva</Btn></div></Modal>;}
+
+// ─── MAIN APP ────────────────────────────────────────────────────────────────
+
+
+// ─── STATIC DOC VIEWER ───────────────────────────────────────────────────────
+function StaticDocViewer({contentKey}){
+  const data=STATIC_DOCS[contentKey];
+  if(!data)return null;
+  const isGym=contentKey.includes("palestra");
+  return <div>
+    {data.map((block,bi)=>(
+      <div key={bi} style={{marginBottom:22}}>
+        <div style={{background:C.surfaceHover,borderLeft:"3px solid "+C.accent,borderRadius:"0 8px 8px 0",padding:"7px 14px",marginBottom:8}}>
+          <span style={{fontWeight:700,fontSize:12,color:C.accent,textTransform:"uppercase",letterSpacing:.5}}>{block.section}</span>
+        </div>
+        {block.rows.map(([k,v],ri)=>{
+          const isRehab=k.startsWith("⚡");
+          return <div key={ri} style={{display:"flex",padding:"8px 12px",borderRadius:6,marginBottom:3,background:isRehab?"#2A1A00":ri%2===0?C.surface+"88":"transparent",borderLeft:isRehab?"2px solid "+C.orange:"none"}}>
+            <span style={{fontSize:13,fontWeight:600,color:isRehab?C.orange:C.textMuted,minWidth:200,flexShrink:0,paddingRight:10}}>{k.replace(/⚡\s*/,"")}</span>
+            <span style={{fontSize:13,color:C.text,fontFamily:"'DM Mono',monospace"}}>{v}</span>
+          </div>;
+        })}
+      </div>
+    ))}
+  </div>;
+}
+
+// ─── INTEGRATORI VIEWER ───────────────────────────────────────────────────────
+function IntegratoriViewer({client}){
+  const integ=calcIntegratori(client);
+  const custom=client.integratori||[];
+  const customNomi=custom.map(x=>x.nome.toLowerCase());
+  const attivi=custom.length>0?custom:integ.filter(i=>i.utile);
+  const suggeriti=custom.length>0?integ.filter(a=>!customNomi.some(n=>n.includes(a.nome.toLowerCase().split(" ")[0]))):[];
+  const PCOLOR={alta:C.red||"#E74C3C",media:C.orange,bassa:C.textMuted,opzionale:C.textMuted};
+
+  const schemaGiornata=[
+    {momento:"☀️ Colazione",items:attivi.filter(i=>i.quando&&i.quando.toLowerCase().includes("colaz"))},
+    {momento:"🍽️ Pranzo",items:attivi.filter(i=>i.quando&&i.quando.toLowerCase().includes("pranzo"))},
+    {momento:"🏋️ Post-allenamento",items:attivi.filter(i=>i.quando&&(i.quando.toLowerCase().includes("post")||i.quando.toLowerCase().includes("allenamento")))},
+    {momento:"🌙 Cena",items:attivi.filter(i=>i.quando&&i.quando.toLowerCase().includes("cena"))},
+    {momento:"🌛 Prima di dormire",items:attivi.filter(i=>i.quando&&(i.quando.toLowerCase().includes("dorm")||i.quando.toLowerCase().includes("notte")))},
+  ].filter(s=>s.items.length>0);
+
+  return <div>
+    {/* Schema giornaliero */}
+    <div style={{marginBottom:24}}>
+      <div style={{fontSize:13,fontWeight:700,color:C.textMuted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>🗓️ Schema giornaliero</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {schemaGiornata.map((s,si)=>(
+          <div key={si} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 16px",display:"flex",gap:12,alignItems:"flex-start"}}>
+            <span style={{fontSize:20,flexShrink:0}}>{s.momento.split(" ")[0]}</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:12,color:C.textMuted,marginBottom:4}}>{s.momento.replace(/^[^\s]+\s/,"")}</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {s.items.map((integ,ii)=>(
+                  <div key={ii} style={{background:C.surfaceHover,borderRadius:8,padding:"4px 10px",border:`1px solid ${C.border}`}}>
+                    <span style={{fontSize:13,fontWeight:600,color:C.text}}>{integ.emoji||"💊"} {integ.nome}</span>
+                    <span style={{fontSize:12,color:C.orange,marginLeft:8,fontFamily:"'DM Mono',monospace"}}>{integ.dose}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {/* Lista integratori attivi */}
+    <div style={{marginBottom:24}}>
+      <div style={{fontSize:13,fontWeight:700,color:C.textMuted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>✅ Integratori attivi</div>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {attivi.map((integ,ii)=>(
+          <div key={ii} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+              <span style={{fontSize:22}}>{integ.emoji||"💊"}</span>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontWeight:700,fontSize:14,color:C.text}}>{integ.nome}</span>
+                  <span style={{fontSize:12,fontFamily:"'DM Mono',monospace",background:C.orange+"22",color:C.orange,borderRadius:6,padding:"2px 8px"}}>{integ.dose}</span>
+                  {integ.priorita&&<span style={{fontSize:11,color:PCOLOR[integ.priorita.toLowerCase()]||C.textMuted,fontWeight:600}}>{integ.priorita==="alta"?"⭐ Alta priorità":integ.priorita==="media"?"Priorità media":"Opzionale"}</span>}
+                  {integ.utile===false&&<span style={{fontSize:11,color:C.textMuted}}>Opzionale</span>}
+                </div>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+              <div style={{background:C.surfaceHover,borderRadius:8,padding:"8px 10px"}}>
+                <div style={{fontSize:11,color:C.textMuted,marginBottom:2}}>⏰ QUANDO</div>
+                <div style={{fontSize:12,color:C.orange,fontWeight:600}}>{integ.quando||integ.momento}</div>
+              </div>
+              {(integ.whenAllenamento||integ.giorni_palestra)&&<div style={{background:C.surfaceHover,borderRadius:8,padding:"8px 10px"}}>
+                <div style={{fontSize:11,color:C.textMuted,marginBottom:2}}>🏋️ GIORNI PALESTRA</div>
+                <div style={{fontSize:12,color:C.text}}>{integ.whenAllenamento||integ.giorni_palestra}</div>
+              </div>}
+            </div>
+            {(integ.perche||integ.note)&&<div style={{fontSize:12,color:C.textMuted,fontStyle:"italic",borderTop:`1px solid ${C.border}`,paddingTop:8}}>{integ.perche||integ.note}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {/* Suggeriti */}
+    {suggeriti.length>0&&<div>
+      <div style={{fontSize:13,fontWeight:700,color:C.textMuted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>💡 Suggeriti (non ancora attivi)</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {suggeriti.map((integ,ii)=>(
+          <div key={ii} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 16px",opacity:0.7}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:18}}>{integ.emoji}</span>
+              <span style={{fontWeight:600,fontSize:13,color:C.textMuted}}>{integ.nome}</span>
+              <span style={{fontSize:12,color:C.textDim,fontFamily:"'DM Mono',monospace"}}>{integ.dose}</span>
+              {integ.priorita==="alta"&&<span style={{fontSize:11,color:C.orange}}>⭐ Consigliato</span>}
+            </div>
+            <div style={{fontSize:12,color:C.textDim,marginTop:6}}>⏰ {integ.quando} &nbsp;|&nbsp; {integ.perche}</div>
+          </div>
+        ))}
+      </div>
+    </div>}
+
+    <div style={{background:C.surfaceHover,borderRadius:10,padding:12,marginTop:20,fontSize:12,color:C.textMuted}}>
+      📝 Per modificare gli integratori attivi usa il pulsante <strong>Modifica</strong> in alto a destra.
+    </div>
+  </div>;
+}
+
+function App(){
+  const[clients,setClients]=useState([]);
+  const[groups]=useState(DEF_GROUPS);
+  const[loaded,setLoaded]=useState(false);
+  const[section,setSection]=useState("clienti"); // clienti | gruppi
+  const[view,setView]=useState("list"); // list | client | group
+  const[selId,setSelId]=useState(null);
+  const[selGroup,setSelGroup]=useState(null);
+  const[search,setSearch]=useState("");
+  const[tab,setTab]=useState("docs");
+  const[modal,setModal]=useState(null);
+  const[toast,setToast]=useState(null);
+  const[viewDoc,setViewDoc]=useState(null);
+
+  useEffect(()=>{(async()=>{try{
+    const r=await window.storage.get("pt-v7");
+    if(r&&r.value){
+      let s=JSON.parse(r.value);
+      // Repair: if Luigi has no docs, restore from defaults
+      s=s.map(c=>{
+        const def=DEF_CLIENTS.find(d=>d.id===c.id);
+        if(def&&(!c.docs||c.docs.length===0)){
+          return{...c,docs:def.docs,integratori:c.integratori||def.integratori||[]};
+        }
+        return c;
+      });
+      // Add Alessandra if missing
+      if(!s.some(c=>c.id==="alessandra-inverardi"))s=[...s,DEF_CLIENTS[1]];
+      setClients(s);
+    }else{
+      setClients(DEF_CLIENTS);
+    }
+  }catch{setClients(DEF_CLIENTS);}setLoaded(true);})();},[]);
+  useEffect(()=>{if(loaded)window.storage.set("pt-v7",JSON.stringify(clients)).catch(()=>{});},[clients,loaded]);
+
+  const t2=(msg,color=C.green)=>{setToast({msg,color});setTimeout(()=>setToast(null),2800);};
+  const sel=clients.find(c=>c.id===selId);
+  const filtered=clients.filter(c=>c.name.toLowerCase().includes(search.toLowerCase())||(c.goal||"").toLowerCase().includes(search.toLowerCase()));
+
+  const addC=d=>{const dietDoc={id:uid(),name:"Scheda Alimentazione",type:"alimentazione",date:today(),contentKey:"diet"};const docs=d.docs||[dietDoc];const hasDiet=docs.some(x=>x.contentKey==="diet");setClients(p=>[...p,{...d,id:uid(),docs:hasDiet?docs:[...docs,dietDoc],progress:[],createdAt:today()}]);t2("Cliente aggiunto!");setModal(null);};
+  const updC=(id,d)=>{setClients(p=>p.map(c=>c.id===id?{...c,...d}:c));t2("Aggiornato!");setModal(null);};
+  const delC=id=>{setClients(p=>p.filter(c=>c.id!==id));setView("list");setSelId(null);t2("Eliminato.",C.red);setModal(null);};
+  const addD=(cid,doc)=>{setClients(p=>p.map(c=>c.id===cid?{...c,docs:[...(c.docs||[]),{...doc,id:uid(),date:today()}]}:c));t2("Documento aggiunto!");setModal(null);};
+  const delD=(cid,did)=>{setClients(p=>p.map(c=>c.id===cid?{...c,docs:c.docs.filter(d=>d.id!==did)}:c));t2("Rimosso.",C.red);};
+  const addP=(cid,e)=>{setClients(p=>p.map(c=>c.id===cid?{...c,progress:[...(c.progress||[]),{...e,id:uid()}]}:c));t2("Progresso salvato!");setModal(null);};
+  const delP=(cid,eid)=>{setClients(p=>p.map(c=>c.id===cid?{...c,progress:c.progress.filter(e=>e.id!==eid)}:c));t2("Eliminato.",C.red);};
+  const updN=(cid,notes)=>setClients(p=>p.map(c=>c.id===cid?{...c,notes}:c));
+
+  if(!loaded)return <div style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:C.textMuted}}>Caricamento...</span></div>;
+
+  const showGroup=view==="group"&&selGroup;
+  const showClient=view==="client"&&sel;
+
+  return <div style={{background:C.bg,minHeight:"100vh",fontFamily:"'Sora',sans-serif",color:C.text}}>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+    {/* HEADER */}
+    <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",height:60,position:"sticky",top:0,zIndex:100}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        {(view==="client"||view==="group")&&<IconBtn onClick={()=>{setView("list");setTab("docs");setSelId(null);setSelGroup(null);}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></IconBtn>}
+        <span style={{fontSize:18,fontWeight:800,letterSpacing:-0.5}}><span style={{color:C.accent}}>PT</span> Manager</span>
+        {showClient&&<><span style={{color:C.textDim}}>›</span><span style={{fontSize:14,color:C.textMuted,fontWeight:600}}>{sel.name}</span></>}
+        {showGroup&&<><span style={{color:C.textDim}}>›</span><span style={{fontSize:14,color:C.textMuted,fontWeight:600}}>{selGroup.name}</span></>}
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        {view==="list"&&<><Btn onClick={()=>setModal("addC")} small>+ Nuovo cliente</Btn></>}
+        {showClient&&<><Btn onClick={()=>setModal("editC")} small variant="ghost">Modifica</Btn><Btn onClick={()=>setModal("delC")} small variant="danger">Elimina</Btn></>}
+      </div>
+    </div>
+
+    {/* NAV TABS – solo nella list view */}
+    {view==="list"&&<div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"0 20px",display:"flex",gap:4}}>
+      {[["clienti",`👤 Clienti (${clients.length})`],["gruppi",`👥 Gruppi (${groups.length})`]].map(([s,l])=>(
+        <button key={s} onClick={()=>{setSection(s);setSearch("");}} style={{background:"transparent",border:"none",borderBottom:`2px solid ${section===s?C.accent:"transparent"}`,padding:"12px 16px",color:section===s?C.accent:C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer",transition:"all .15s"}}>{l}</button>
+      ))}
+    </div>}
+
+    {/* LIST VIEW */}
+    {view==="list"&&<div style={{maxWidth:860,margin:"0 auto",padding:"28px 24px"}}>
+      {section==="clienti"&&<>
+        <div style={{position:"relative",marginBottom:20}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textDim} strokeWidth="2" style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cerca cliente..." style={{width:"100%",boxSizing:"border-box",background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 14px 11px 40px",color:C.text,fontSize:14,outline:"none"}}/></div>
+        {filtered.length===0?<Empty icon="👤" text={search?"Nessun risultato":"Nessun cliente – clicca + Nuovo cliente"}/>:<div style={{display:"flex",flexDirection:"column",gap:12}}>{filtered.map(c=><ClientCard key={c.id} client={c} onClick={()=>{setSelId(c.id);setView("client");setTab("docs");}}/>)}</div>}
+      </>}
+      {section==="gruppi"&&<>
+        <p style={{margin:"0 0 20px",color:C.textMuted,fontSize:14}}>Tocca un gruppo per vedere partecipanti, programma e obiettivi</p>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {groups.map(g=><GroupCard key={g.id} group={g} onClick={()=>{setSelGroup(g);setView("group");}}/>)}
+        </div>
+      </>}
+    </div>}
+
+    {/* GROUP DETAIL */}
+    {showGroup&&<GroupDetail group={selGroup} onBack={()=>{setView("list");setSelGroup(null);}}/>}
+
+    {/* CLIENT VIEW */}
+    {showClient&&<div style={{maxWidth:900,margin:"0 auto",padding:"28px 24px"}}>
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:24,marginBottom:24}}>
+        <div style={{display:"flex",gap:18,alignItems:"flex-start"}}><Avatar name={sel.name}/>
+          <div style={{flex:1}}>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center",marginBottom:6}}><h2 style={{margin:0,fontSize:20,fontWeight:800}}>{sel.name}</h2><span style={{fontSize:12,color:C.textMuted,fontFamily:"'DM Mono',monospace"}}>dal {sel.createdAt}</span></div>
+            <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:13,color:C.textMuted,marginBottom:8,fontFamily:"'DM Mono',monospace"}}>{sel.dob&&<span>📅 {sel.dob}</span>}{sel.age&&<span>🎂 {sel.age} anni</span>}{sel.weight&&<span>⚖️ {sel.weight}</span>}{sel.height&&<span>📏 {sel.height}</span>}</div>
+            {sel.goal&&<div style={{fontSize:13,color:C.accent,fontWeight:600,marginBottom:8}}>🎯 {sel.goal}</div>}
+          </div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:4,marginBottom:20,background:C.surface,padding:4,borderRadius:12,border:`1px solid ${C.border}`,width:"fit-content"}}>
+        {[["docs","📄 Schede"],["progress","📈 Progressi"],["notes","📝 Note"]].map(([t,l])=><button key={t} onClick={()=>setTab(t)} style={{background:tab===t?C.accent:"transparent",border:"none",borderRadius:8,padding:"8px 16px",color:tab===t?"#fff":C.textMuted,fontSize:13,fontWeight:600,cursor:"pointer",transition:"all .15s"}}>{l}</button>)}
+      </div>
+      {tab==="docs"&&<div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h3 style={{margin:0,fontSize:16,fontWeight:700}}>Schede ({(sel.docs||[]).length})</h3><Btn onClick={()=>setModal("addD")} small>+ Aggiungi</Btn></div>
+        {(sel.docs||[]).length===0?<Empty icon="📄" text="Nessuna scheda"/>:
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>{sel.docs.map(doc=>(
+            <div key={doc.id} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px 18px",display:"flex",alignItems:"center",gap:14}}>
+              <div style={{fontSize:26,flexShrink:0}}>{doc.type==="palestra"?"💪":doc.type==="cardio"?"🏃":doc.type==="alimentazione"?"🥗":doc.contentKey==="integratori"?"💊":"📄"}</div>
+              <div style={{flex:1}}><div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{doc.name}</div><div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}><Badge type={doc.type}/><span style={{fontSize:12,color:C.textMuted,fontFamily:"'DM Mono',monospace"}}>{doc.date}</span></div>{doc.contentKey==="diet"&&<div style={{marginTop:5,fontSize:12,color:C.orange}}>🤖 Piano dieta automatico per giornata</div>}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end",flexShrink:0}}>
+                <Btn onClick={()=>setViewDoc(doc)} small>👁 Visualizza</Btn>
+                <IconBtn danger onClick={()=>delD(sel.id,doc.id)}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></IconBtn>
+              </div>
+            </div>
+          ))}</div>}
+      </div>}
+      {tab==="progress"&&<div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h3 style={{margin:0,fontSize:16,fontWeight:700}}>Progressi ({(sel.progress||[]).length})</h3><Btn onClick={()=>setModal("addP")} small>+ Aggiungi</Btn></div>
+        {(sel.progress||[]).length===0?<Empty icon="📈" text="Nessun progresso"/>:
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>{[...(sel.progress||[])].reverse().map(e=>(
+            <div key={e.id} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px 18px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><span style={{fontSize:13,color:C.textMuted,fontFamily:"'DM Mono',monospace"}}>📅 {e.date}</span><IconBtn danger onClick={()=>delP(sel.id,e.id)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></IconBtn></div>
+              <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>{[["⚖️ Peso",e.peso,"kg"],["🏋️ Panca",e.panca,"kg"],["🦵 Squat",e.squat,"kg"],["⬇️ Stacco",e.stacco,"kg"]].map(([l,v,u])=>v?<div key={l} style={{textAlign:"center"}}><div style={{fontSize:12,color:C.textMuted,marginBottom:2}}>{l}</div><div style={{fontSize:20,fontWeight:800,color:C.accent,fontFamily:"'DM Mono',monospace"}}>{v}<span style={{fontSize:11,color:C.textMuted}}> {u}</span></div></div>:null)}</div>
+              {e.note&&<div style={{marginTop:10,fontSize:13,color:C.textMuted,borderTop:`1px solid ${C.border}`,paddingTop:8}}>{e.note}</div>}
+            </div>
+          ))}</div>}
+      </div>}
+      {tab==="notes"&&<div><h3 style={{margin:"0 0 16px",fontSize:16,fontWeight:700}}>Note del trainer</h3><NotesEditor value={sel.notes||""} onChange={v=>updN(sel.id,v)}/></div>}
+    </div>}
+
+    {/* DOC VIEWER */}
+    {viewDoc&&sel&&<Modal title={viewDoc.name} onClose={()=>setViewDoc(null)} wide>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}><Badge type={viewDoc.type}/><span style={{fontSize:13,color:C.textMuted,fontFamily:"'DM Mono',monospace"}}>{viewDoc.date}</span></div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{
+            const el=document.getElementById("doc-print-area");
+            if(!el)return;
+            const title=viewDoc.name+" - "+sel.name;
+            const style=document.createElement("style");
+            style.id="print-style-tmp";
+            style.innerHTML="@media print{body > *{display:none!important} #print-tmp-wrap{display:block!important;font-family:Arial,sans-serif;padding:24px;color:#111} #print-tmp-wrap h2{color:#1F5C99;border-bottom:2px solid #1F5C99;padding-bottom:8px}}";
+            document.head.appendChild(style);
+            const wrap=document.createElement("div");
+            wrap.id="print-tmp-wrap";
+            wrap.innerHTML="<h2>"+title+"</h2>"+el.innerHTML;
+            document.body.appendChild(wrap);
+            window.print();
+            document.head.removeChild(style);
+            document.body.removeChild(wrap);
+          }} style={{background:"#7D3C98",border:"none",color:"#fff",borderRadius:8,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>{"🖨️ Stampa"}</button>
+          <button onClick={()=>{
+            const data=STATIC_DOCS[viewDoc.contentKey];
+            let txt=viewDoc.name+" - "+sel.name+"\n"+"=".repeat(50)+"\n";
+            if(viewDoc.contentKey==="diet"){
+              ["palestra","cardio","riposo"].forEach(function(dt){
+                const dd=calcDiet(sel,dt);
+                txt+="\n◆ GIORNO "+dt.toUpperCase()+"\n";
+                txt+="Macros: "+dd.macros.prot+"g prot | "+dd.macros.carb+"g carb | "+dd.macros.fat+"g grassi | "+dd.macros.kcal+" kcal\n";
+                dd.meals.forEach(function(m){
+                  txt+="\n"+m.nome+" ("+m.orario+")\n";
+                  m.alimenti.forEach(function(a){txt+="  - "+a.nome+": "+a.q+" ("+a.macro+")\n";});
+                  txt+="  Regola: "+m.regola+"\n";
+                });
+              });
+            } else if(viewDoc.contentKey==="integratori"){
+              const integ=sel.integratori||calcIntegratori(sel).filter(function(i){return i.utile;});
+              integ.forEach(function(i){txt+="\n"+(i.emoji||"")+" "+i.nome+" - "+(i.dose||"")+"\n  Quando: "+(i.quando||i.momento||"")+"\n"+(i.perche?"  Perche: "+i.perche+"\n":"");});
+            } else if(data){
+              data.forEach(function(b){
+                txt+="\n"+b.section+"\n"+"─".repeat(35)+"\n";
+                b.rows.forEach(function(r){txt+="  "+r[0].replace(/⚡\s*/g,"").trim()+": "+r[1]+"\n";});
+              });
+            }
+            const blob=new Blob([txt],{type:"text/plain;charset=utf-8"});
+            const a=document.createElement("a");
+            a.href=URL.createObjectURL(blob);
+            a.download=viewDoc.name.replace(/\s+/g,"_")+"_"+sel.name.replace(/\s+/g,"_")+".txt";
+            a.click();
+          }} style={{background:C.green,border:"none",color:"#fff",borderRadius:8,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>{"⬇ Scarica .txt"}</button>
+        </div>
+      </div>
+      <div id="doc-print-area">
+        {viewDoc.contentKey==="diet"?<DietViewer client={sel}/>:viewDoc.contentKey==="integratori"?<IntegratoriViewer client={sel}/>:STATIC_DOCS[viewDoc.contentKey]?<StaticDocViewer contentKey={viewDoc.contentKey}/>:<div style={{textAlign:"center",padding:"40px 0",color:C.textMuted}}><div style={{fontSize:36,marginBottom:12}}>📄</div><div>Contenuto non disponibile.</div></div>}
+      </div>
+    </Modal>}
+
+    {toast&&<div style={{position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",background:toast.color,color:"#fff",padding:"12px 24px",borderRadius:10,fontSize:14,fontWeight:600,zIndex:2000,boxShadow:"0 8px 32px #00000060"}}>{toast.msg}</div>}
+    {modal==="addC"&&<AddClientModal onClose={()=>setModal(null)} onSave={addC}/>}
+    {modal==="editC"&&sel&&<AddClientModal onClose={()=>setModal(null)} onSave={d=>updC(sel.id,d)} initial={sel} title="Modifica cliente"/>}
+    {modal==="addD"&&sel&&<AddDocModal onClose={()=>setModal(null)} onSave={d=>addD(sel.id,d)}/>}
+    {modal==="addP"&&sel&&<AddProgressModal onClose={()=>setModal(null)} onSave={d=>addP(sel.id,d)}/>}
+    {modal==="delC"&&sel&&<Modal title="Elimina cliente" onClose={()=>setModal(null)}><p style={{color:C.textMuted,marginBottom:20}}>Eliminare <strong style={{color:C.text}}>{sel.name}</strong> e tutti i dati?</p><div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="ghost" onClick={()=>setModal(null)}>Annulla</Btn><Btn variant="danger" onClick={()=>delC(sel.id)}>Elimina</Btn></div></Modal>}
+  </div>;
+}
+
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
+</script>
+</body>
+</html>
