@@ -614,7 +614,25 @@ function App(){
   const[toast,setToast]=useState(null);
   const[viewDoc,setViewDoc]=useState(null);
 
-  useEffect(()=>{(async()=>{try{const r=await window.storage.get("pt-v7");if(r&&r.value){const s=JSON.parse(r.value);setClients(s.some(c=>c.id==="alessandra-inverardi")?s:[...s,DEF_CLIENTS[1]]);}else setClients(DEF_CLIENTS);}catch{setClients(DEF_CLIENTS);}setLoaded(true);})();},[]);
+  useEffect(()=>{(async()=>{try{
+    const r=await window.storage.get("pt-v7");
+    if(r&&r.value){
+      let s=JSON.parse(r.value);
+      // Repair: if Luigi has no docs, restore from defaults
+      s=s.map(c=>{
+        const def=DEF_CLIENTS.find(d=>d.id===c.id);
+        if(def&&(!c.docs||c.docs.length===0)){
+          return{...c,docs:def.docs,integratori:c.integratori||def.integratori||[]};
+        }
+        return c;
+      });
+      // Add Alessandra if missing
+      if(!s.some(c=>c.id==="alessandra-inverardi"))s=[...s,DEF_CLIENTS[1]];
+      setClients(s);
+    }else{
+      setClients(DEF_CLIENTS);
+    }
+  }catch{setClients(DEF_CLIENTS);}setLoaded(true);})();},[]);
   useEffect(()=>{if(loaded)window.storage.set("pt-v7",JSON.stringify(clients)).catch(()=>{});},[clients,loaded]);
 
   const t2=(msg,color=C.green)=>{setToast({msg,color});setTimeout(()=>setToast(null),2800);};
@@ -783,8 +801,6 @@ function App(){
     {modal==="delC"&&sel&&<Modal title="Elimina cliente" onClose={()=>setModal(null)}><p style={{color:C.textMuted,marginBottom:20}}>Eliminare <strong style={{color:C.text}}>{sel.name}</strong> e tutti i dati?</p><div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="ghost" onClick={()=>setModal(null)}>Annulla</Btn><Btn variant="danger" onClick={()=>delC(sel.id)}>Elimina</Btn></div></Modal>}
   </div>;
 }
-
-window.AppComponent = App;
 
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
